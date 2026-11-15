@@ -1,0 +1,798 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>منظم اليوم الذكي | جدولك اليومي والتنبيهات</title>
+    <!-- تحميل مكتبة Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- تحميل خط Cairo من Google Fonts لدعم العربية بشكل عصري -->
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <!-- تحميل مكتبة Tone.js لتوليد أصوات تنبيه احترافية بدون ملفات خارجية -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <!-- تحميل أيقونات Lucide -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Cairo', 'sans-serif'],
+                    },
+                    colors: {
+                        primary: {
+                            50: '#eff6ff',
+                            100: '#dbeafe',
+                            500: '#3b82f6',
+                            600: '#2563eb',
+                            700: '#1d4ed8',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* تحسينات إضافية للتمرير والأنيميشن */
+        body {
+            font-family: 'Cairo', sans-serif;
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+        @keyframes pulse-ring {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 12px rgba(59, 130, 246, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+        }
+        .alarm-active {
+            animation: pulse-ring 1.5s infinite;
+        }
+        /* تخصيص شريط التمرير */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        .dark ::-webkit-scrollbar-thumb {
+            background: #475569;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 dark:bg-slate-900 dark:text-slate-100 min-h-screen flex flex-col">
+
+    <!-- الشريط العلوي (Header) -->
+    <header class="bg-white dark:bg-slate-800 shadow-sm border-b border-slate-200 dark:border-slate-700 sticky top-0 z-30">
+        <div class="max-w-6xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-4">
+            <!-- الشعار والعنوان -->
+            <div class="flex items-center gap-3">
+                <div class="bg-blue-600 text-white p-2.5 rounded-2xl shadow-md shadow-blue-500/20">
+                    <i data-lucide="calendar-clock" class="w-6 h-6"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-extrabold text-slate-900 dark:text-white tracking-tight">منظم اليوم الذكي</h1>
+                    <p id="current-date-display" class="text-xs text-slate-500 dark:text-slate-400 font-semibold"></p>
+                </div>
+            </div>
+
+            <!-- الساعة الرقمية الحية -->
+            <div class="bg-slate-100 dark:bg-slate-700/70 px-4 py-2 rounded-2xl border border-slate-200 dark:border-slate-600 flex items-center gap-2">
+                <i data-lucide="clock" class="w-5 h-5 text-blue-600 dark:text-blue-400"></i>
+                <span id="live-clock" class="text-lg font-bold tracking-wider text-slate-800 dark:text-white" dir="ltr">00:00:00</span>
+            </div>
+
+            <!-- أزرار التحكم (الإشعارات + الوضع الليلي + اختبار الصوت) -->
+            <div class="flex items-center gap-2">
+                <button id="test-sound-btn" onclick="testAlarmSound()" title="اختبار صوت التنبيه" class="p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 transition flex items-center gap-1.5 text-sm font-semibold">
+                    <i data-lucide="volume-2" class="w-5 h-5 text-amber-500"></i>
+                    <span class="hidden sm:inline">تجربة الصوت</span>
+                </button>
+
+                <button id="notify-permission-btn" onclick="requestNotificationPermission()" class="p-2.5 rounded-xl bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800 transition flex items-center gap-1.5 text-sm font-bold">
+                    <i data-lucide="bell-ring" class="w-5 h-5"></i>
+                    <span id="notify-btn-text">تفعيل الإشعارات</span>
+                </button>
+
+                <button id="theme-toggle" onclick="toggleDarkMode()" title="تبديل المظهر" class="p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 transition">
+                    <i data-lucide="moon" id="theme-icon" class="w-5 h-5"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- المحتوى الرئيسي -->
+    <main class="max-w-6xl mx-auto w-full px-4 py-6 flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        <!-- العمود الأيمن: نموذج إضافة/تعديل مهمة + إحصائيات الإنجاز -->
+        <div class="lg:col-span-4 space-y-6">
+            
+            <!-- بطاقة نسبة الإنجاز -->
+            <div class="bg-white dark:bg-slate-800 p-5 rounded-3xl shadow-sm border border-slate-200 dark:border-slate-700">
+                <div class="flex items-center justify-between mb-3">
+                    <h2 class="font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                        <i data-lucide="trending-up" class="w-5 h-5 text-emerald-500"></i>
+                        إنجاز اليوم
+                    </h2>
+                    <span id="progress-percentage" class="text-lg font-extrabold text-blue-600 dark:text-blue-400">0%</span>
+                </div>
+                <div class="w-full bg-slate-100 dark:bg-slate-700 rounded-full h-3.5 overflow-hidden mb-3">
+                    <div id="progress-bar" class="bg-gradient-to-l from-blue-600 to-emerald-500 h-3.5 rounded-full transition-all duration-500" style="width: 0%"></div>
+                </div>
+                <div class="flex justify-between text-xs font-semibold text-slate-500 dark:text-slate-400">
+                    <span id="tasks-completed-count">مكتملة: 0</span>
+                    <span id="tasks-total-count">الإجمالي: 0</span>
+                </div>
+            </div>
+
+            <!-- بطاقة إضافة / تعديل مهمة -->
+            <div class="bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-sm border border-slate-200 dark:border-slate-700">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 id="form-title" class="text-lg font-extrabold text-slate-800 dark:text-white flex items-center gap-2">
+                        <i data-lucide="plus-circle" class="w-5 h-5 text-blue-600"></i>
+                        إضافة مهمة جديدة
+                    </h2>
+                    <button id="cancel-edit-btn" onclick="resetForm()" class="hidden text-xs bg-rose-100 text-rose-600 dark:bg-rose-900/40 dark:text-rose-400 px-2.5 py-1 rounded-lg font-bold hover:bg-rose-200 transition">
+                        إلغاء التعديل
+                    </button>
+                </div>
+
+                <form id="task-form" onsubmit="handleTaskSubmit(event)" class="space-y-4">
+                    <input type="hidden" id="edit-task-id" value="">
+
+                    <!-- اسم المهمة -->
+                    <div>
+                        <label class="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1.5">ماذا تريد أن تفعل؟</label>
+                        <input type="text" id="task-title" required placeholder="مثال: مذاكرة الفيزياء، تمرين رياضي..." 
+                            class="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-700/50 border border-slate-300 dark:border-slate-600 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition text-sm">
+                    </div>
+
+                    <!-- الأوقات (من - إلى) -->
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1.5">وقت البدء (التنبيه)</label>
+                            <input type="time" id="task-start-time" required 
+                                class="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-700/50 border border-slate-300 dark:border-slate-600 focus:ring-2 focus:ring-blue-500 outline-none transition text-sm font-semibold">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1.5">وقت الانتهاء (اختياري)</label>
+                            <input type="time" id="task-end-time" 
+                                class="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-700/50 border border-slate-300 dark:border-slate-600 focus:ring-2 focus:ring-blue-500 outline-none transition text-sm font-semibold">
+                        </div>
+                    </div>
+
+                    <!-- التصنيف -->
+                    <div>
+                        <label class="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1.5">التصنيف</label>
+                        <div class="grid grid-cols-2 gap-2" id="category-selector">
+                            <label class="cursor-pointer">
+                                <input type="radio" name="category" value="study" class="peer sr-only" checked>
+                                <div class="p-2.5 rounded-xl border border-slate-200 dark:border-slate-600 peer-checked:border-blue-500 peer-checked:bg-blue-50 dark:peer-checked:bg-blue-900/30 flex items-center gap-2 transition">
+                                    <span class="w-3 h-3 rounded-full bg-blue-500"></span>
+                                    <span class="text-sm font-bold">مذاكرة وعمل</span>
+                                </div>
+                            </label>
+                            <label class="cursor-pointer">
+                                <input type="radio" name="category" value="sport" class="peer sr-only">
+                                <div class="p-2.5 rounded-xl border border-slate-200 dark:border-slate-600 peer-checked:border-emerald-500 peer-checked:bg-emerald-50 dark:peer-checked:bg-emerald-900/30 flex items-center gap-2 transition">
+                                    <span class="w-3 h-3 rounded-full bg-emerald-500"></span>
+                                    <span class="text-sm font-bold">رياضة وصحة</span>
+                                </div>
+                            </label>
+                            <label class="cursor-pointer">
+                                <input type="radio" name="category" value="hobby" class="peer sr-only">
+                                <div class="p-2.5 rounded-xl border border-slate-200 dark:border-slate-600 peer-checked:border-purple-500 peer-checked:bg-purple-50 dark:peer-checked:bg-purple-900/30 flex items-center gap-2 transition">
+                                    <span class="w-3 h-3 rounded-full bg-purple-500"></span>
+                                    <span class="text-sm font-bold">هوايات وترفيه</span>
+                                </div>
+                            </label>
+                            <label class="cursor-pointer">
+                                <input type="radio" name="category" value="general" class="peer sr-only">
+                                <div class="p-2.5 rounded-xl border border-slate-200 dark:border-slate-600 peer-checked:border-amber-500 peer-checked:bg-amber-50 dark:peer-checked:bg-amber-900/30 flex items-center gap-2 transition">
+                                    <span class="w-3 h-3 rounded-full bg-amber-500"></span>
+                                    <span class="text-sm font-bold">مهام عامة</span>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- ملاحظات إضافية -->
+                    <div>
+                        <label class="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1.5">ملاحظات (اختياري)</label>
+                        <textarea id="task-notes" rows="2" placeholder="أي تفاصيل إضافية..." 
+                            class="w-full px-4 py-2 rounded-xl bg-slate-50 dark:bg-slate-700/50 border border-slate-300 dark:border-slate-600 focus:ring-2 focus:ring-blue-500 outline-none transition text-sm"></textarea>
+                    </div>
+
+                    <!-- زر الحفظ -->
+                    <button type="submit" id="submit-btn" class="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-md shadow-blue-500/25 transition flex items-center justify-center gap-2">
+                        <i data-lucide="check" class="w-5 h-5"></i>
+                        <span>إضافة إلى الجدول</span>
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- العمود الأيسر: جدول اليوم والخط الزمني -->
+        <div class="lg:col-span-8 flex flex-col">
+            <div class="bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-sm border border-slate-200 dark:border-slate-700 flex-1 flex flex-col">
+                
+                <!-- رأس قسم الجدول + الفلاتر -->
+                <div class="flex flex-wrap items-center justify-between gap-4 pb-4 mb-4 border-b border-slate-100 dark:border-slate-700">
+                    <div>
+                        <h2 class="text-xl font-extrabold text-slate-800 dark:text-white flex items-center gap-2">
+                            <i data-lucide="list-todo" class="w-6 h-6 text-blue-600"></i>
+                            الجدول الزمني لليوم
+                        </h2>
+                        <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">يتم ترتيب المهام تلقائياً حسب موعد البدء</p>
+                    </div>
+
+                    <!-- أزرار التصفية -->
+                    <div class="flex flex-wrap items-center gap-1.5 bg-slate-100 dark:bg-slate-700/50 p-1 rounded-xl">
+                        <button onclick="setFilter('all')" id="filter-all" class="filter-btn px-3 py-1.5 rounded-lg text-xs font-bold bg-white dark:bg-slate-600 text-blue-600 dark:text-white shadow-sm transition">الكل</button>
+                        <button onclick="setFilter('pending')" id="filter-pending" class="filter-btn px-3 py-1.5 rounded-lg text-xs font-bold text-slate-600 dark:text-slate-300 hover:text-slate-900 transition">المتبقية</button>
+                        <button onclick="setFilter('completed')" id="filter-completed" class="filter-btn px-3 py-1.5 rounded-lg text-xs font-bold text-slate-600 dark:text-slate-300 hover:text-slate-900 transition">المكتملة</button>
+                    </div>
+                </div>
+
+                <!-- أدوات سريعة للجدول -->
+                <div class="flex justify-end gap-3 mb-4">
+                    <button onclick="addSampleSchedule()" class="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1">
+                        <i data-lucide="sparkles" class="w-3.5 h-3.5"></i>
+                        تعبئة جدول تجريبي
+                    </button>
+                    <button onclick="promptClearAll()" class="text-xs font-bold text-rose-500 hover:underline flex items-center gap-1">
+                        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                        مسح الكل
+                    </button>
+                </div>
+
+                <!-- حاوية قائمة المهام -->
+                <div id="tasks-container" class="space-y-3 flex-1 overflow-y-auto pr-1">
+                    <!-- يتم حقن المهام هنا عبر الجافاسكريبت -->
+                </div>
+
+            </div>
+        </div>
+    </main>
+
+    <!-- نافذة التنبيه المنبثقة داخل التطبيق (Modal عند حلول موعد المهمة) -->
+    <div id="alarm-modal" class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-800 max-w-md w-full rounded-3xl p-6 shadow-2xl border-2 border-blue-500 alarm-active text-center transform transition-all">
+            <div class="w-16 h-16 bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center mx-auto mb-4">
+                <i data-lucide="bell-ring" class="w-8 h-8 animate-bounce"></i>
+            </div>
+            <span class="inline-block px-3 py-1 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 text-xs font-extrabold mb-2">
+                حان الآن موعد المهمة!
+            </span>
+            <h3 id="alarm-task-title" class="text-2xl font-extrabold text-slate-900 dark:text-white mb-2">اسم المهمة</h3>
+            <p id="alarm-task-time" class="text-sm font-bold text-slate-500 dark:text-slate-400 mb-3" dir="ltr">00:00</p>
+            <p id="alarm-task-notes" class="text-sm text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-700/50 p-3 rounded-xl mb-6"></p>
+            
+            <div class="flex gap-3">
+                <button onclick="completeFromAlarm()" class="flex-1 py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-md transition flex items-center justify-center gap-2">
+                    <i data-lucide="check-circle" class="w-5 h-5"></i>
+                    تم الإنجاز
+                </button>
+                <button onclick="dismissAlarm()" class="flex-1 py-3 px-4 bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-white font-bold rounded-xl transition">
+                    إغلاق التنبيه
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- نافذة تأكيد مخصصة (بديل آمن لـ confirm) -->
+    <div id="confirm-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-800 max-w-sm w-full rounded-3xl p-6 shadow-xl border border-slate-200 dark:border-slate-700 text-center">
+            <div class="w-12 h-12 bg-rose-100 dark:bg-rose-900/40 text-rose-600 rounded-full flex items-center justify-center mx-auto mb-3">
+                <i data-lucide="alert-triangle" class="w-6 h-6"></i>
+            </div>
+            <h3 class="text-lg font-extrabold text-slate-900 dark:text-white mb-2" id="confirm-title">تأكيد الحذف</h3>
+            <p class="text-sm text-slate-500 dark:text-slate-400 mb-6" id="confirm-message">هل أنت متأكد من رغبتك في مسح جميع المهام؟</p>
+            <div class="flex gap-3">
+                <button id="confirm-yes-btn" class="flex-1 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl transition">نعم، متأكد</button>
+                <button onclick="closeConfirmModal()" class="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold rounded-xl transition">إلغاء</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- إشعار Toast صغير للرسائل السريعة -->
+    <div id="toast" class="fixed bottom-5 left-5 bg-slate-900 dark:bg-white text-white dark:text-slate-900 px-4 py-3 rounded-2xl shadow-lg font-bold text-sm flex items-center gap-2 transform translate-y-20 opacity-0 transition-all duration-300 z-50">
+        <i data-lucide="info" class="w-5 h-5 text-blue-400 dark:text-blue-600"></i>
+        <span id="toast-message">رسالة النظام</span>
+    </div>
+
+    <script>
+        // ================= إدارة الحالة والبيانات =================
+        let tasks = JSON.parse(localStorage.getItem('daily_planner_tasks')) || [];
+        let currentFilter = 'all';
+        let activeAlarmTaskId = null;
+        let lastTriggeredMinute = '';
+
+        // إعدادات التصنيفات (الألوان والأسماء والأيقونات)
+        const categoryConfig = {
+            study: { label: 'مذاكرة وعمل', color: 'blue', bg: 'bg-blue-100 dark:bg-blue-900/40', text: 'text-blue-700 dark:text-blue-300', border: 'border-r-blue-500', icon: 'book-open' },
+            sport: { label: 'رياضة وصحة', color: 'emerald', bg: 'bg-emerald-100 dark:bg-emerald-900/40', text: 'text-emerald-700 dark:text-emerald-300', border: 'border-r-emerald-500', icon: 'dumbbell' },
+            hobby: { label: 'هوايات وترفيه', color: 'purple', bg: 'bg-purple-100 dark:bg-purple-900/40', text: 'text-purple-700 dark:text-purple-300', border: 'border-r-purple-500', icon: 'gamepad-2' },
+            general: { label: 'مهام عامة', color: 'amber', bg: 'bg-amber-100 dark:bg-amber-900/40', text: 'text-amber-700 dark:text-amber-300', border: 'border-r-amber-500', icon: 'check-square' }
+        };
+
+        // ================= التهيئة عند تحميل الصفحة =================
+        document.addEventListener('DOMContentLoaded', () => {
+            initTheme();
+            updateDateDisplay();
+            updateClock();
+            checkNotificationStatus();
+            renderTasks();
+            lucide.createIcons();
+
+            // تحديث الساعة ومراقبة التنبيهات كل ثانية
+            setInterval(() => {
+                updateClock();
+                checkAlarms();
+            }, 1000);
+        });
+
+        // ================= الساعة والتاريخ =================
+        function updateDateDisplay() {
+            const now = new Date();
+            const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+            document.getElementById('current-date-display').textContent = now.toLocaleDateString('ar-EG', options);
+        }
+
+        function updateClock() {
+            const now = new Date();
+            const timeString = now.toLocaleTimeString('en-US', { hour12: true, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            document.getElementById('live-clock').textContent = timeString;
+        }
+
+        // تنسيق الوقت من 24 ساعة إلى 12 ساعة للعرض بالعربية
+        function formatTime12h(time24) {
+            if (!time24) return '';
+            const [hours, minutes] = time24.split(':');
+            let h = parseInt(hours, 10);
+            const period = h >= 12 ? 'م' : 'ص';
+            h = h % 12 || 12;
+            return `${h.toString().padStart(2, '0')}:${minutes} ${period}`;
+        }
+
+        // ================= نظام الصوت (Tone.js) =================
+        async function playAlertSound() {
+            try {
+                await Tone.start();
+                const synth = new Tone.PolySynth(Tone.Synth).toDestination();
+                const now = Tone.now();
+                // نغمة تنبيه لطيفة وواضحة
+                synth.triggerAttackRelease("C5", "8n", now);
+                synth.triggerAttackRelease("E5", "8n", now + 0.15);
+                synth.triggerAttackRelease("G5", "8n", now + 0.30);
+                synth.triggerAttackRelease("C6", "4n", now + 0.45);
+            } catch (e) {
+                console.warn("تعذر تشغيل الصوت تلقائياً قبل تفاعل المستخدم:", e);
+            }
+        }
+
+        function testAlarmSound() {
+            playAlertSound();
+            showToast('تم تشغيل نغمة التنبيه بنجاح! تأكد من رفع صوت الجهاز.');
+        }
+
+        // ================= نظام إشعارات المتصفح (Web Notifications API) =================
+        function checkNotificationStatus() {
+            const btn = document.getElementById('notify-permission-btn');
+            const btnText = document.getElementById('notify-btn-text');
+
+            if (!("Notification" in window)) {
+                btn.style.display = 'none';
+                return;
+            }
+
+            if (Notification.permission === "granted") {
+                btnText.textContent = "الإشعارات مفعلة";
+                btn.classList.replace('bg-blue-50', 'bg-emerald-50');
+                btn.classList.replace('text-blue-600', 'text-emerald-600');
+                btn.classList.replace('border-blue-200', 'border-emerald-200');
+            } else if (Notification.permission === "denied") {
+                btnText.textContent = "الإشعارات محظورة";
+                btn.classList.replace('bg-blue-50', 'bg-rose-50');
+                btn.classList.replace('text-blue-600', 'text-rose-600');
+            }
+        }
+
+        function requestNotificationPermission() {
+            if (!("Notification" in window)) {
+                showToast("متصفحك لا يدعم إشعارات سطح المكتب.");
+                return;
+            }
+
+            // تفعيل الصوت أيضاً عند الضغط على الزر لضمان عمله لاحقاً
+            Tone.start();
+
+            Notification.requestPermission().then((permission) => {
+                checkNotificationStatus();
+                if (permission === "granted") {
+                    showToast("رائع! ستصلك الإشعارات في موعد كل مهمة.");
+                    new Notification("منظم اليوم الذكي", {
+                        body: "تم تفعيل الإشعارات بنجاح! سنذكرك بمهامك في وقتها.",
+                        icon: "https://cdn-icons-png.flaticon.com/512/2693/2693507.png"
+                    });
+                } else {
+                    showToast("يرجى السماح بالإشعارات من إعدادات المتصفح لتلقي التنبيهات.");
+                }
+            });
+        }
+
+        // ================= مراقبة الوقت وإطلاق التنبيهات =================
+        function checkAlarms() {
+            const now = new Date();
+            const currentHours = now.getHours().toString().padStart(2, '0');
+            const currentMinutes = now.getMinutes().toString().padStart(2, '0');
+            const currentTime24 = `${currentHours}:${currentMinutes}`;
+
+            // منع تكرار التنبيه في نفس الدقيقة
+            if (lastTriggeredMinute === currentTime24) return;
+
+            // البحث عن مهمة غير مكتملة يطابق وقت بدئها الوقت الحالي
+            const dueTask = tasks.find(t => !t.completed && t.startTime === currentTime24 && !t.notifiedToday);
+
+            if (dueTask) {
+                lastTriggeredMinute = currentTime24;
+                dueTask.notifiedToday = true;
+                saveTasks();
+                triggerTaskAlert(dueTask);
+            }
+        }
+
+        function triggerTaskAlert(task) {
+            activeAlarmTaskId = task.id;
+            
+            // 1. تشغيل الصوت
+            playAlertSound();
+
+            // 2. إظهار النافذة المنبثقة داخل الصفحة
+            document.getElementById('alarm-task-title').textContent = task.title;
+            const timeRange = task.endTime ? `${formatTime12h(task.startTime)} - ${formatTime12h(task.endTime)}` : formatTime12h(task.startTime);
+            document.getElementById('alarm-task-time').textContent = timeRange;
+            
+            const notesEl = document.getElementById('alarm-task-notes');
+            if (task.notes) {
+                notesEl.textContent = task.notes;
+                notesEl.classList.remove('hidden');
+            } else {
+                notesEl.classList.add('hidden');
+            }
+
+            const modal = document.getElementById('alarm-modal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+
+            // 3. إرسال إشعار المتصفح الخارجي
+            if ("Notification" in window && Notification.permission === "granted") {
+                const notif = new Notification(`⏰ حان موعد: ${task.title}`, {
+                    body: task.notes || `الوقت المحدد: ${timeRange}`,
+                    tag: task.id
+                });
+                notif.onclick = () => {
+                    window.focus();
+                    notif.close();
+                };
+            }
+        }
+
+        function dismissAlarm() {
+            const modal = document.getElementById('alarm-modal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+            activeAlarmTaskId = null;
+        }
+
+        function completeFromAlarm() {
+            if (activeAlarmTaskId) {
+                toggleTaskComplete(activeAlarmTaskId);
+            }
+            dismissAlarm();
+        }
+
+        // ================= إدارة المهام (CRUD) =================
+        function handleTaskSubmit(e) {
+            e.preventDefault();
+            
+            // تنشيط الصوت مع أول تفاعل للمستخدم
+            Tone.start();
+
+            const idInput = document.getElementById('edit-task-id').value;
+            const title = document.getElementById('task-title').value.trim();
+            const startTime = document.getElementById('task-start-time').value;
+            const endTime = document.getElementById('task-end-time').value;
+            const category = document.querySelector('input[name="category"]:checked').value;
+            const notes = document.getElementById('task-notes').value.trim();
+
+            if (!title || !startTime) return;
+
+            if (idInput) {
+                // تعديل مهمة موجودة
+                const index = tasks.findIndex(t => t.id === idInput);
+                if (index !== -1) {
+                    tasks[index] = {
+                        ...tasks[index],
+                        title,
+                        startTime,
+                        endTime,
+                        category,
+                        notes,
+                        notifiedToday: false // إعادة تفعيل التنبيه إذا تغير الوقت
+                    };
+                    showToast('تم تحديث المهمة بنجاح');
+                }
+            } else {
+                // إضافة مهمة جديدة
+                const newTask = {
+                    id: 'task_' + Date.now(),
+                    title,
+                    startTime,
+                    endTime,
+                    category,
+                    notes,
+                    completed: false,
+                    notifiedToday: false
+                };
+                tasks.push(newTask);
+                showToast('تمت إضافة المهمة إلى جدولك');
+            }
+
+            saveTasks();
+            resetForm();
+            renderTasks();
+        }
+
+        function editTask(id) {
+            const task = tasks.find(t => t.id === id);
+            if (!task) return;
+
+            document.getElementById('edit-task-id').value = task.id;
+            document.getElementById('task-title').value = task.title;
+            document.getElementById('task-start-time').value = task.startTime;
+            document.getElementById('task-end-time').value = task.endTime || '';
+            document.getElementById('task-notes').value = task.notes || '';
+            
+            const radio = document.querySelector(`input[name="category"][value="${task.category}"]`);
+            if (radio) radio.checked = true;
+
+            // تحديث واجهة النموذج لوضع التعديل
+            document.getElementById('form-title').innerHTML = `<i data-lucide="edit-3" class="w-5 h-5 text-amber-500"></i> تعديل المهمة`;
+            document.getElementById('submit-btn').innerHTML = `<i data-lucide="save" class="w-5 h-5"></i> <span>حفظ التعديلات</span>`;
+            document.getElementById('submit-btn').classList.replace('bg-blue-600', 'bg-amber-600');
+            document.getElementById('submit-btn').classList.replace('hover:bg-blue-700', 'hover:bg-amber-700');
+            document.getElementById('cancel-edit-btn').classList.remove('hidden');
+            
+            lucide.createIcons();
+            document.getElementById('task-title').focus();
+        }
+
+        function resetForm() {
+            document.getElementById('task-form').reset();
+            document.getElementById('edit-task-id').value = '';
+            document.getElementById('form-title').innerHTML = `<i data-lucide="plus-circle" class="w-5 h-5 text-blue-600"></i> إضافة مهمة جديدة`;
+            document.getElementById('submit-btn').innerHTML = `<i data-lucide="check" class="w-5 h-5"></i> <span>إضافة إلى الجدول</span>`;
+            document.getElementById('submit-btn').classList.replace('bg-amber-600', 'bg-blue-600');
+            document.getElementById('submit-btn').classList.replace('hover:bg-amber-700', 'hover:bg-blue-700');
+            document.getElementById('cancel-edit-btn').classList.add('hidden');
+            lucide.createIcons();
+        }
+
+        function toggleTaskComplete(id) {
+            const task = tasks.find(t => t.id === id);
+            if (task) {
+                task.completed = !task.completed;
+                saveTasks();
+                renderTasks();
+                if (task.completed) {
+                    showToast('أحسنت! تم إنجاز المهمة 🎉');
+                }
+            }
+        }
+
+        function deleteTask(id) {
+            tasks = tasks.filter(t => t.id !== id);
+            if (document.getElementById('edit-task-id').value === id) {
+                resetForm();
+            }
+            saveTasks();
+            renderTasks();
+            showToast('تم حذف المهمة');
+        }
+
+        function saveTasks() {
+            // ترتيب المهام تصاعدياً حسب وقت البدء
+            tasks.sort((a, b) => a.startTime.localeCompare(b.startTime));
+            localStorage.setItem('daily_planner_tasks', JSON.stringify(tasks));
+        }
+
+        // ================= عرض الجدول وتحديث الإحصائيات =================
+        function setFilter(filter) {
+            currentFilter = filter;
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.classList.remove('bg-white', 'dark:bg-slate-600', 'text-blue-600', 'dark:text-white', 'shadow-sm');
+                btn.classList.add('text-slate-600', 'dark:text-slate-300');
+            });
+            const activeBtn = document.getElementById(`filter-${filter}`);
+            activeBtn.classList.add('bg-white', 'dark:bg-slate-600', 'text-blue-600', 'dark:text-white', 'shadow-sm');
+            activeBtn.classList.remove('text-slate-600', 'dark:text-slate-300');
+            renderTasks();
+        }
+
+        function renderTasks() {
+            const container = document.getElementById('tasks-container');
+            updateStats();
+
+            let filteredTasks = tasks;
+            if (currentFilter === 'pending') {
+                filteredTasks = tasks.filter(t => !t.completed);
+            } else if (currentFilter === 'completed') {
+                filteredTasks = tasks.filter(t => t.completed);
+            }
+
+            if (filteredTasks.length === 0) {
+                container.innerHTML = `
+                    <div class="flex flex-col items-center justify-center py-12 text-center">
+                        <div class="w-16 h-16 bg-slate-100 dark:bg-slate-700/50 rounded-full flex items-center justify-center text-slate-400 mb-3">
+                            <i data-lucide="calendar-off" class="w-8 h-8"></i>
+                        </div>
+                        <h3 class="text-base font-bold text-slate-700 dark:text-slate-300">لا توجد مهام في هذه القائمة</h3>
+                        <p class="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-xs">أضف مهامك اليومية من النموذج الجانبي وسنقوم بتنبيهك في الموعد المحدد.</p>
+                    </div>
+                `;
+                lucide.createIcons();
+                return;
+            }
+
+            const now = new Date();
+            const currentTime24 = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+
+            container.innerHTML = filteredTasks.map(task => {
+                const cat = categoryConfig[task.category] || categoryConfig.general;
+                const isPast = !task.completed && task.startTime < currentTime24;
+                const timeDisplay = task.endTime 
+                    ? `${formatTime12h(task.startTime)} - ${formatTime12h(task.endTime)}`
+                    : formatTime12h(task.startTime);
+
+                return `
+                    <div class="group relative bg-slate-50 dark:bg-slate-700/40 hover:bg-white dark:hover:bg-slate-700/80 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 border-r-4 ${cat.border} transition-all shadow-sm flex items-start justify-between gap-3 ${task.completed ? 'opacity-65' : ''}">
+                        
+                        <div class="flex items-start gap-3.5 flex-1">
+                            <!-- زر الإنجاز -->
+                            <button onclick="toggleTaskComplete('${task.id}')" class="mt-1 w-6 h-6 rounded-lg border-2 flex items-center justify-center transition ${task.completed ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-slate-300 dark:border-slate-500 hover:border-blue-500'}">
+                                ${task.completed ? '<i data-lucide="check" class="w-4 h-4"></i>' : ''}
+                            </button>
+
+                            <div class="flex-1">
+                                <!-- الوقت والتصنيف -->
+                                <div class="flex flex-wrap items-center gap-2 mb-1">
+                                    <span class="inline-flex items-center gap-1 text-xs font-extrabold px-2.5 py-0.5 rounded-lg bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-600 shadow-xs">
+                                        <i data-lucide="clock" class="w-3.5 h-3.5 text-blue-500"></i>
+                                        ${timeDisplay}
+                                    </span>
+                                    <span class="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-0.5 rounded-lg ${cat.bg} ${cat.text}">
+                                        <i data-lucide="${cat.icon}" class="w-3 h-3"></i>
+                                        ${cat.label}
+                                    </span>
+                                    ${isPast ? '<span class="text-[11px] font-bold text-rose-500 bg-rose-50 dark:bg-rose-900/30 px-2 py-0.5 rounded-md">فات موعدها</span>' : ''}
+                                </div>
+
+                                <!-- عنوان المهمة -->
+                                <h3 class="text-base font-extrabold text-slate-800 dark:text-white ${task.completed ? 'line-through text-slate-500' : ''}">
+                                    ${escapeHTML(task.title)}
+                                </h3>
+
+                                <!-- الملاحظات -->
+                                ${task.notes ? `<p class="text-xs text-slate-500 dark:text-slate-400 mt-1">${escapeHTML(task.notes)}</p>` : ''}
+                            </div>
+                        </div>
+
+                        <!-- أزرار التعديل والحذف -->
+                        <div class="flex items-center gap-1 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button onclick="editTask('${task.id}')" title="تعديل" class="p-2 text-slate-400 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/30 rounded-xl transition">
+                                <i data-lucide="pencil" class="w-4 h-4"></i>
+                            </button>
+                            <button onclick="deleteTask('${task.id}')" title="حذف" class="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/30 rounded-xl transition">
+                                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            lucide.createIcons();
+        }
+
+        function updateStats() {
+            const total = tasks.length;
+            const completed = tasks.filter(t => t.completed).length;
+            const percentage = total === 0 ? 0 : Math.round((completed / total) * 100);
+
+            document.getElementById('progress-percentage').textContent = `${percentage}%`;
+            document.getElementById('progress-bar').style.width = `${percentage}%`;
+            document.getElementById('tasks-completed-count').textContent = `مكتملة: ${completed}`;
+            document.getElementById('tasks-total-count').textContent = `الإجمالي: ${total}`;
+        }
+
+        // ================= أدوات مساعدة (جدول تجريبي، مسح الكل، الوضع الليلي) =================
+        function addSampleSchedule() {
+            const sampleTasks = [
+                { id: 's1_' + Date.now(), title: 'الاستيقاظ وصلاة الفجر وأذكار الصباح', startTime: '05:30', endTime: '06:15', category: 'general', notes: 'بداية يوم نشيط ومبارك', completed: false, notifiedToday: false },
+                { id: 's2_' + Date.now(), title: 'جلسة مذاكرة عميقة (التركيز الكامل)', startTime: '09:00', endTime: '11:30', category: 'study', notes: 'إغلاق الهاتف والتركيز على الدروس الأساسية', completed: false, notifiedToday: false },
+                { id: 's3_' + Date.now(), title: 'تمرين رياضي أو مشي سريع', startTime: '17:00', endTime: '18:00', category: 'sport', notes: 'شرب كمية كافية من الماء', completed: false, notifiedToday: false },
+                { id: 's4_' + Date.now(), title: 'ممارسة هواية القراءة أو البرمجة', startTime: '20:30', endTime: '22:00', category: 'hobby', notes: 'تطوير المهارات الشخصية', completed: false, notifiedToday: false }
+            ];
+            tasks = [...tasks, ...sampleTasks];
+            saveTasks();
+            renderTasks();
+            showToast('تمت إضافة جدول يومي مقترح!');
+        }
+
+        function promptClearAll() {
+            if (tasks.length === 0) {
+                showToast('الجدول فارغ بالفعل!');
+                return;
+            }
+            const modal = document.getElementById('confirm-modal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            
+            document.getElementById('confirm-yes-btn').onclick = () => {
+                tasks = [];
+                saveTasks();
+                renderTasks();
+                closeConfirmModal();
+                showToast('تم مسح جميع المهام');
+            };
+        }
+
+        function closeConfirmModal() {
+            const modal = document.getElementById('confirm-modal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+
+        function initTheme() {
+            if (localStorage.getItem('theme') === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                document.documentElement.classList.add('dark');
+                document.getElementById('theme-icon').setAttribute('data-lucide', 'sun');
+            }
+        }
+
+        function toggleDarkMode() {
+            const html = document.documentElement;
+            const icon = document.getElementById('theme-icon');
+            if (html.classList.contains('dark')) {
+                html.classList.remove('dark');
+                localStorage.setItem('theme', 'light');
+                icon.setAttribute('data-lucide', 'moon');
+            } else {
+                html.classList.add('dark');
+                localStorage.setItem('theme', 'dark');
+                icon.setAttribute('data-lucide', 'sun');
+            }
+            lucide.createIcons();
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toast-message').textContent = msg;
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            setTimeout(() => {
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 3500);
+        }
+
+        function escapeHTML(str) {
+            return str.replace(/[&<>'"]/g, tag => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
+            }[tag]));
+        }
+    </script>
+</body>
+</html>
